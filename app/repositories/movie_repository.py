@@ -25,7 +25,30 @@ class MovieRepository:
             joinedload(Movie.director),
             joinedload(Movie.genres)
         ).filter(Movie.id == movie_id).first()
-        return self._format_single_movie(movie) if movie else None
+
+        if not movie:
+            return None
+
+        stats = self.db.query(
+            func.avg(MovieRating.score),
+            func.count(MovieRating.id)
+        ).filter(MovieRating.movie_id == movie.id).first()
+
+        return {
+            "id": movie.id,
+            "title": movie.title,
+            "release_year": movie.release_year,
+            "cast": movie.cast,
+            "average_rating": round(float(stats[0]), 1) if stats[0] else 0.0,
+            "ratings_count": stats[1],
+            "director": {
+                "id": movie.director.id,
+                "name": movie.director.name,
+                "birth_year": movie.director.birth_year,
+                "description": movie.director.description
+            } if movie.director else None,
+            "genres": [g.name for g in movie.genres]
+        }
 
     def create_movie(self, movie_data: dict, genre_ids: List[int]):
         new_movie = Movie(**movie_data)
@@ -54,6 +77,13 @@ class MovieRepository:
     def delete_movie(self, movie_id: int):
         movie = self.db.query(Movie).filter(Movie.id == movie_id).first()
         if movie:
+            # Step 1: Remove associations in the bridge table (movie_genres) [cite: 423]
+            movie.genres = []
+
+            # Step 2: Delete related ratings to ensure data integrity [cite: 424]
+            self.db.query(MovieRating).filter(MovieRating.movie_id == movie_id).delete()
+
+            # Step 3: Delete the movie itself [cite: 420]
             self.db.delete(movie)
             self.db.commit()
             return True
@@ -67,9 +97,9 @@ class MovieRepository:
         return new_rating
 
     def _format_movies(self, movies):
-        return [self._format_single_movie(m) for m in movies]
+        return [self._format_list_movie(m) for m in movies]
 
-    def _format_single_movie(self, m):
+    def _format_list_movie(self, m):
         stats = self.db.query(
             func.avg(MovieRating.score),
             func.count(MovieRating.id)
@@ -79,7 +109,6 @@ class MovieRepository:
             "id": m.id,
             "title": m.title,
             "release_year": m.release_year,
-            "cast": m.cast,
             "average_rating": round(float(stats[0]), 1) if stats[0] else 0.0,
             "ratings_count": stats[1],
             "director": {"id": m.director.id, "name": m.director.name} if m.director else None,

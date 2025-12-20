@@ -5,6 +5,8 @@ from typing import List, Optional, Any
 class DirectorSchema(BaseModel):
     id: int
     name: str
+    birth_year: Optional[int] = None  # Added per Doc p.13
+    description: Optional[str] = None  # Added per Doc p.13
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -13,10 +15,10 @@ class MovieBaseSchema(BaseModel):
     title: str
     release_year: int
     average_rating: float = 0.0
-    ratings_count: int = 0
+    ratings_count: int = 0  # Required per Doc p.13
     director: Optional[DirectorSchema] = None
     genres: List[str] = []
-    cast: Optional[str] = None
+    cast: Optional[str] = None  # Required per Doc p.13
 
     model_config = ConfigDict(from_attributes=True)
 
