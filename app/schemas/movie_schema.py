@@ -1,36 +1,38 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional
+from pydantic import BaseModel, Field, ConfigDict
+from typing import List, Optional, Any
+
 
 class DirectorSchema(BaseModel):
     id: int
     name: str
-    class Config: from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
-class GenreSchema(BaseModel):
-    name: str
-    class Config: from_attributes = True
 
 class MovieBaseSchema(BaseModel):
     id: int
     title: str
     release_year: int
-    average_rating: float
-    ratings_count: int
-    director: Optional[DirectorSchema]
-    genres: List[GenreSchema]
-    class Config: from_attributes = True
+    average_rating: float = 0.0
+    ratings_count: int = 0
+    director: Optional[DirectorSchema] = None
+    genres: List[str] = []
+    cast: Optional[str] = None
 
-class MovieListResponse(BaseModel):
-    status: str
-    data: dict # Will contain page, page_size, total_items, items
+    model_config = ConfigDict(from_attributes=True)
 
-class MovieResponse(BaseModel):
-    status: str
-    data: MovieBaseSchema
+
+class MovieCreateUpdate(BaseModel):
+    title: str = Field(..., example="The Godfather")
+    director_id: int
+    release_year: int
+    cast: Optional[str] = None
+    genres: List[int] = []
+
 
 class RatingCreate(BaseModel):
     score: int = Field(..., ge=1, le=10)
 
-class RatingResponse(BaseModel):
-    status: str
-    data: dict
+
+class StandardResponse(BaseModel):
+    status: str = "success"
+    data: Any
