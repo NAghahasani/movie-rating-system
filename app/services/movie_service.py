@@ -6,9 +6,12 @@ class MovieService:
     def __init__(self, db: Session):
         self.movie_repo = MovieRepository(db)
 
-    def list_movies(self, page: int = 1, size: int = 10, title: str = None, genre: str = None):
+    # Updated to include release_year filter per Doc p.10 & p.21
+    def list_movies(self, page: int = 1, size: int = 10, title: str = None, genre: str = None, release_year: int = None):
         skip = (page - 1) * size
-        items, total_items = self.movie_repo.get_all_movies(skip=skip, limit=size, title=title, genre=genre)
+        items, total_items = self.movie_repo.get_all_movies(
+            skip=skip, limit=size, title=title, genre=genre, release_year=release_year
+        )
         return {
             "page": page,
             "page_size": size,
@@ -16,6 +19,7 @@ class MovieService:
             "items": items
         }
 
+    # ... other methods remain the same ...
     def get_movie(self, movie_id: int):
         return self.movie_repo.get_movie_details(movie_id)
 

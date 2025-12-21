@@ -9,12 +9,21 @@ router = APIRouter(prefix="/api/v1/movies", tags=["Movies"])
 
 @router.get("/", response_model=StandardResponse)
 def get_movies(
-        page: int = 1, size: int = 10,
-        title: str = Query(None), genre: str = Query(None),
+        page: int = 1,
+        size: int = 10,
+        title: str = Query(None),
+        genre: str = Query(None),
+        release_year: int = Query(None),
         db: Session = Depends(get_db)
 ):
     service = MovieService(db)
-    result = service.list_movies(page=page, size=size, title=title, genre=genre)
+    result = service.list_movies(
+        page=page,
+        size=size,
+        title=title,
+        genre=genre,
+        release_year=release_year
+    )
     return StandardResponse(data=result)
 
 
@@ -23,7 +32,10 @@ def get_movie(movie_id: int, db: Session = Depends(get_db)):
     service = MovieService(db)
     movie = service.get_movie(movie_id)
     if not movie:
-        return StandardResponse(status="failure", data={"code": 404, "message": "Movie not found"})
+        return StandardResponse(
+            status="failure",
+            data={"code": 404, "message": "Movie not found"}
+        )
     return StandardResponse(data=movie)
 
 
@@ -39,7 +51,10 @@ def update_movie(movie_id: int, movie_data: MovieCreateUpdate, db: Session = Dep
     service = MovieService(db)
     updated_movie = service.update_movie(movie_id, movie_data)
     if not updated_movie:
-        return StandardResponse(status="failure", data={"code": 404, "message": "Movie not found"})
+        return StandardResponse(
+            status="failure",
+            data={"code": 404, "message": "Movie not found"}
+        )
     return StandardResponse(data=updated_movie)
 
 
@@ -52,11 +67,15 @@ def delete_movie(movie_id: int, db: Session = Depends(get_db)):
     return Response(status_code=204)
 
 
-@router.post("/{movie_id}/ratings", status_code=201, response_model=StandardResponse)
+# Functionality #7: Rating with Trailing Slash according to Doc p.22
+@router.post("/{movie_id}/ratings/", status_code=201, response_model=StandardResponse)
 def rate_movie(movie_id: int, rating: RatingCreate, db: Session = Depends(get_db)):
     service = MovieService(db)
     if not service.get_movie(movie_id):
-        return StandardResponse(status="failure", data={"code": 404, "message": "Movie not found"})
+        return StandardResponse(
+            status="failure",
+            data={"code": 404, "message": "Movie not found"}
+        )
 
     new_rating = service.rate_movie(movie_id, rating.score)
     return StandardResponse(data={
