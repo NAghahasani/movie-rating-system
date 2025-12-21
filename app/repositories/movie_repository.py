@@ -1,6 +1,6 @@
 from typing import List
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
+from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy import func, distinct
 from app.models.models import Movie, MovieRating, Genre
 
 
@@ -10,7 +10,11 @@ class MovieRepository:
 
     def get_all_movies(self, skip: int = 0, limit: int = 10, title: str = None, genre: str = None,
                        release_year: int = None):
-        query = self.db.query(Movie).options(joinedload(Movie.director), joinedload(Movie.genres))
+        query = self.db.query(Movie).options(
+            joinedload(Movie.director),
+            selectinload(Movie.genres)
+        )
+
         if title:
             query = query.filter(Movie.title.ilike(f"%{title}%"))
         if release_year:
@@ -18,56 +22,52 @@ class MovieRepository:
         if genre:
             query = query.join(Movie.genres).filter(Genre.name.ilike(f"%{genre}%"))
 
-        total_items = query.count()
-        movies = query.offset(skip).limit(limit).all()
-        return [self._format_list_movie(m) for m in movies], total_items
+        total_items = query.distinct().count()
+
+        # تغییر از desc به asc برای نمایش از ابتدای لیست
+        movies = query.distinct().order_by(Movie.id.asc()).offset(skip).limit(limit).all()
+
+        return [self._format_movie_response(m, full_director=False) for m in movies], total_items
 
     def get_movie_details(self, movie_id: int):
-        movie = self.db.query(Movie).options(joinedload(Movie.director), joinedload(Movie.genres)).filter(
-            Movie.id == movie_id).first()
-        if not movie: return None
-        stats = self.db.query(func.avg(MovieRating.score), func.count(MovieRating.id)).filter(
-            MovieRating.movie_id == movie.id).first()
+        movie = self.db.query(Movie).options(
+            joinedload(Movie.director),
+            selectinload(Movie.genres)
+        ).filter(Movie.id == movie_id).first()
 
-        # نمایش کامل اطلاعات کارگردان طبق ص 13 داک
-        return {
-            "id": movie.id, "title": movie.title, "release_year": movie.release_year, "cast": movie.cast,
-            "average_rating": round(float(stats[0]), 1) if stats[0] else None,
-            "ratings_count": stats[1],
-            "director": {
-                "id": movie.director.id,
-                "name": movie.director.name,
-                "birth_year": movie.director.birth_year,
-                "description": movie.director.description
-            } if movie.director else None,
-            "genres": [g.name for g in movie.genres]
-        }
+        if not movie: return None
+        return self._format_movie_response(movie, full_director=True)
 
     def create_movie(self, movie_data: dict, genre_ids: List[int]):
         new_movie = Movie(**movie_data)
         if genre_ids:
-            genres = self.db.query(Genre).filter(Genre.id.in_(genre_ids)).all()
-            new_movie.genres = genres
+            new_movie.genres = self.db.query(Genre).filter(Genre.id.in_(genre_ids)).all()
         self.db.add(new_movie)
         self.db.commit()
         self.db.refresh(new_movie)
-        # نمایش خلاصه کارگردان (فقط نام و آی‌دی) طبق ص 15 داک
-        return self._format_list_movie(new_movie)
+        return self._format_movie_response(new_movie, full_director=False)
 
     def update_movie(self, movie_id: int, movie_data: dict, genre_ids: List[int]):
-        movie = self.db.query(Movie).filter(Movie.id == movie_id).first()
+        # لود کردن فیلم به همراه ژانرها برای اطمینان از همگام‌سازی صحیح
+        movie = self.db.query(Movie).options(selectinload(Movie.genres)).filter(Movie.id == movie_id).first()
         if not movie: return None
-        for key, value in movie_data.items(): setattr(movie, key, value)
+
+        for key, value in movie_data.items():
+            if value is not None:
+                setattr(movie, key, value)
+
         if genre_ids is not None:
+            # همگام‌سازی لیست ژانرها
             movie.genres = self.db.query(Genre).filter(Genre.id.in_(genre_ids)).all()
+
         self.db.commit()
         self.db.refresh(movie)
+        # بازگرداندن جزییات کامل پس از آپدیت
         return self.get_movie_details(movie.id)
 
     def delete_movie(self, movie_id: int):
         movie = self.db.query(Movie).filter(Movie.id == movie_id).first()
         if movie:
-            movie.genres = []
             self.db.query(MovieRating).filter(MovieRating.movie_id == movie_id).delete()
             self.db.delete(movie)
             self.db.commit()
@@ -78,19 +78,32 @@ class MovieRepository:
         new_rating = MovieRating(movie_id=movie_id, score=score)
         self.db.add(new_rating)
         self.db.commit()
-        return new_rating
+        self.db.refresh(new_rating)
+        return {
+            "rating_id": new_rating.id,
+            "movie_id": new_rating.movie_id,
+            "score": new_rating.score,
+            "created_at": new_rating.created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+        }
 
-    def _format_list_movie(self, m):
+    def _format_movie_response(self, m, full_director=False):
         stats = self.db.query(func.avg(MovieRating.score), func.count(MovieRating.id)).filter(
             MovieRating.movie_id == m.id).first()
-        # نمایش null برای امتیاز و اطلاعات خلاصه کارگردان طبق ص 8 و 15 داک
-        return {
+        response = {
             "id": m.id,
             "title": m.title,
             "release_year": m.release_year,
+            "director": None,
+            "genres": [g.name for g in m.genres],
+            "cast": m.cast,
             "average_rating": round(float(stats[0]), 1) if stats[0] else None,
             "ratings_count": stats[1],
-            "director": {"id": m.director.id, "name": m.director.name} if m.director else None,
-            "genres": [g.name for g in m.genres],
-            "cast": m.cast
+            "updated_at": m.updated_at.strftime("%Y-%m-%dT%H:%M:%SZ") if m.updated_at else None
         }
+        if m.director:
+            if full_director:
+                response["director"] = {"id": m.director.id, "name": m.director.name,
+                                        "birth_year": m.director.birth_year, "description": m.director.description}
+            else:
+                response["director"] = {"id": m.director.id, "name": m.director.name}
+        return response

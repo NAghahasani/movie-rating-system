@@ -8,8 +8,12 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     message = errors[0].get("msg") if errors else "Invalid input"
 
     for error in errors:
-        if "release_year" in str(error.get("loc")):
+        loc = str(error.get("loc"))
+        if "release_year" in loc:
             message = "Invalid release_year"
+            break
+        elif "score" in loc:
+            message = "Score must be an integer between 1 and 10"
             break
 
     return JSONResponse(

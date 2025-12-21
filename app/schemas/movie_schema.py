@@ -12,19 +12,20 @@ class MovieBaseSchema(BaseModel):
     id: int
     title: str
     release_year: int
-    average_rating: Optional[float] = None  # اصلاح برای نمایش null طبق ص 15 داک
+    average_rating: Optional[float] = None
     ratings_count: int = 0
-    director: Optional[Any] = None  # برای پشتیبانی از نمایش خلاصه و کامل کارگردان
+    director: Optional[Any] = None
     genres: List[str] = []
     cast: Optional[str] = None
+    updated_at: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class MovieCreateUpdate(BaseModel):
-    title: str = Field(..., example="The Godfather")
-    director_id: int
-    release_year: int
+    title: Optional[str] = None
+    director_id: Optional[int] = None
+    release_year: Optional[int] = None
     cast: Optional[str] = None
-    genres: List[int] = []
+    genres: Optional[List[int]] = None
 
 class RatingCreate(BaseModel):
     score: int = Field(..., ge=1, le=10)
