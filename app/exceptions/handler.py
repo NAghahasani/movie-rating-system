@@ -1,26 +1,44 @@
 from fastapi import Request, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-async def global_exception_handler(request: Request, exc: Exception):
-    if isinstance(exc, HTTPException):
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={
-                "status": "failure",
-                "error": {
-                    "code": exc.status_code,
-                    "message": exc.detail
-                }
-            }
-        )
-    # For unhandled server errors
+
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = exc.errors()
+    message = errors[0].get("msg") if errors else "Invalid input"
+
+    for error in errors:
+        if "release_year" in str(error.get("loc")):
+            message = "Invalid release_year"
+            break
+
     return JSONResponse(
-        status_code=500,
+        status_code=422,
         content={
             "status": "failure",
             "error": {
-                "code": 500,
-                "message": str(exc)
+                "code": 422,
+                "message": message
+            }
+        }
+    )
+
+
+async def global_exception_handler(request: Request, exc: Exception):
+    status_code = 500
+    message = str(exc)
+
+    if isinstance(exc, HTTPException):
+        status_code = exc.status_code
+        message = exc.detail
+
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "failure",
+            "error": {
+                "code": status_code,
+                "message": message
             }
         }
     )

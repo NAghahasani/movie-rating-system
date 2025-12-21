@@ -1,13 +1,13 @@
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from app.controller.movie_controller import router as movie_router
-from app.exceptions.handler import global_exception_handler
+from app.exceptions.handler import global_exception_handler, validation_exception_handler
 
 app = FastAPI(title="Movie Rating System")
 
-# Register the global exception handler for all Exception types
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, global_exception_handler)
 
-# Include routers with versioning prefix as per Doc p.22
 app.include_router(movie_router)
 
 @app.get("/")
