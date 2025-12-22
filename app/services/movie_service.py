@@ -81,3 +81,4 @@ class MovieService:
             return None
 
         return self.movie_repo.add_rating(movie_id, score)
+

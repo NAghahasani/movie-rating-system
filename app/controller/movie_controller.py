@@ -108,7 +108,7 @@ def rate_movie(
     """Submit rating with strict Phase 2 logging requirements."""
     route_path = f"/api/v1/movies/{movie_id}/ratings"
 
-    # Manual validation to allow logging of invalid values as warnings
+    # Manual validation for Phase 2 logging of invalid values [cite: 964, 966]
     if rating.score < 1 or rating.score > 10:
         logger.warning(
             f"Invalid rating value (movie_id={movie_id}, rating={rating.score}, route={route_path})"
@@ -118,7 +118,7 @@ def rate_movie(
             detail="Score must be an integer between 1 and 10"
         )
 
-    # Log initial rating attempt [cite: 957-958]
+    # Initial logging as per Section 5.1 [cite: 957, 958]
     logger.info(f"rating {rating.score}, route={route_path}")
     logger.info(f"Rating movie (movie_id={movie_id}, rating={rating.score}, route={route_path})")
 
@@ -129,13 +129,17 @@ def rate_movie(
             logger.warning(f"Invalid rating attempt: Movie {movie_id} not found")
             raise HTTPException(status_code=404, detail="Movie not found")
 
-        # Log successful save [cite: 960]
+        # Log successful save with context [cite: 960]
         logger.info(f"Rating saved successfully (movie_id={movie_id}, rating={rating.score})")
         return {"status": "success", "data": result}
 
     except HTTPException:
+        # Re-raise known HTTP exceptions
         raise
     except Exception:
-        # Log unexpected errors as per Phase 2 [cite: 969-970]
+        # Final Phase 2 Requirement: Log system/database errors at ERROR level [cite: 785, 969, 970]
         logger.error(f"Failed to save rating (movie_id={movie_id}, rating={rating.score})")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error occurred while saving rating"
+        )

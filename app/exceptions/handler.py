@@ -1,9 +1,14 @@
+"""Global exception handlers for consistent API error responses."""
+
 from fastapi import Request, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from app.logging_config import logger
+
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle Pydantic validation errors and format responses."""
     errors = exc.errors()
     message = errors[0].get("msg") if errors else "Invalid input"
 
@@ -29,12 +34,18 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 async def global_exception_handler(request: Request, exc: Exception):
+    """
+    Catch-all exception handler to ensure all errors are logged.
+    """
     status_code = 500
-    message = str(exc)
+    message = "Internal server error"
 
     if isinstance(exc, HTTPException):
         status_code = exc.status_code
         message = exc.detail
+    else:
+        # Log unexpected system errors for observability [cite: 321, 367]
+        logger.error(f"Unhandled system error: {str(exc)}", exc_info=True)
 
     return JSONResponse(
         status_code=status_code,
