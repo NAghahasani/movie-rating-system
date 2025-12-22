@@ -2,7 +2,7 @@
 
 from typing import List, Optional, Any
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict
 
 
 class DirectorSchema(BaseModel):
@@ -43,9 +43,12 @@ class MovieCreateUpdate(BaseModel):
 
 
 class RatingCreate(BaseModel):
-    """Schema for submitting a new movie rating."""
+    """
+    Schema for submitting a new movie rating.
+    Manual validation is performed in the controller for Phase 2 logging requirements.
+    """
 
-    score: int = Field(..., ge=1, le=10)
+    score: int
 
 
 class StandardResponse(BaseModel):

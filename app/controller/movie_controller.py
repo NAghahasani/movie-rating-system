@@ -1,14 +1,14 @@
-"""API Controllers for movie-related endpoints."""
+"""API Controllers for movie-related endpoints with Phase 2 Logging."""
 
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 
+from app.logging_config import logger
 from app.db.session import get_db
 from app.services.movie_service import MovieService
 from app.schemas.movie_schema import (
-    MovieBaseSchema,
     MovieCreateUpdate,
     RatingCreate,
     StandardResponse
@@ -31,7 +31,9 @@ def get_movies(
         release_year: Optional[int] = None,
         service: MovieService = Depends(get_movie_service)
 ):
-    """List movies with pagination and filters."""
+    """List movies and log the list retrieval request as per Phase 2 requirements."""
+    logger.info(f"Fetching movie list: page={page}, size={size}")
+
     skip = (page - 1) * size
     movies, total = service.get_all_movies(skip, size, title, genre, release_year)
 
@@ -103,10 +105,37 @@ def rate_movie(
         rating: RatingCreate,
         service: MovieService = Depends(get_movie_service)
 ):
-    """Submit a rating score for a movie."""
-    result = service.add_rating(movie_id, rating.score)
+    """Submit rating with strict Phase 2 logging requirements."""
+    route_path = f"/api/v1/movies/{movie_id}/ratings"
 
-    if not result:
-        raise HTTPException(status_code=404, detail="Movie not found")
+    # Manual validation to allow logging of invalid values as warnings
+    if rating.score < 1 or rating.score > 10:
+        logger.warning(
+            f"Invalid rating value (movie_id={movie_id}, rating={rating.score}, route={route_path})"
+        )
+        raise HTTPException(
+            status_code=422,
+            detail="Score must be an integer between 1 and 10"
+        )
 
-    return {"status": "success", "data": result}
+    # Log initial rating attempt [cite: 957-958]
+    logger.info(f"rating {rating.score}, route={route_path}")
+    logger.info(f"Rating movie (movie_id={movie_id}, rating={rating.score}, route={route_path})")
+
+    try:
+        result = service.add_rating(movie_id, rating.score)
+
+        if not result:
+            logger.warning(f"Invalid rating attempt: Movie {movie_id} not found")
+            raise HTTPException(status_code=404, detail="Movie not found")
+
+        # Log successful save [cite: 960]
+        logger.info(f"Rating saved successfully (movie_id={movie_id}, rating={rating.score})")
+        return {"status": "success", "data": result}
+
+    except HTTPException:
+        raise
+    except Exception:
+        # Log unexpected errors as per Phase 2 [cite: 969-970]
+        logger.error(f"Failed to save rating (movie_id={movie_id}, rating={rating.score})")
+        raise HTTPException(status_code=500, detail="Internal server error")
