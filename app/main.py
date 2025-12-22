@@ -11,15 +11,23 @@ from app.exceptions.handler import global_exception_handler, validation_exceptio
 # Initialize the FastAPI application
 app = FastAPI(title="Movie Rating System")
 
+<<<<<<< Updated upstream
 # Register custom exception handlers for structured failure responses
+=======
+>>>>>>> Stashed changes
 app.add_exception_handler(HTTPException, global_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, global_exception_handler)
 
+<<<<<<< Updated upstream
 # Include the movie router
 app.include_router(movie_router)
 
 
+=======
+app.include_router(movie_router)
+
+>>>>>>> Stashed changes
 @app.get("/", include_in_schema=False)
 def read_root():
     """
