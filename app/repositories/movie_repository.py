@@ -160,7 +160,7 @@ class MovieRepository:
             "cast": m.cast,
             "average_rating": round(float(stats[0]), 1) if stats[0] else None,
             "ratings_count": stats[1],
-            "updated_at": m.updated_at.strftime("%Y-%m-%dT%H:%M:%SZ") if m.updated_at else None
+             #"updated_at": m.updated_at.strftime("%Y-%m-%dT%H:%M:%SZ") if m.updated_at else None
         }
 
         if m.director:

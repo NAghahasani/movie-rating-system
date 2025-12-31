@@ -1,3 +1,4 @@
+import os
 import sys
 from os.path import dirname, abspath, join
 from logging.config import fileConfig
@@ -14,6 +15,11 @@ from app.models.models import Director, Movie, Genre, MovieRating
 
 # This is the Alembic Config object
 config = context.config
+
+# Override sqlalchemy.url with DATABASE_URL environment variable if present
+db_url = os.getenv("DATABASE_URL")
+if db_url:
+    config.set_main_option("sqlalchemy.url", db_url)
 
 # Interpret the config file for Python logging
 if config.config_file_name is not None:

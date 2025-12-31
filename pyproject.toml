@@ -1,6 +1,7 @@
 [tool.poetry]
 name = "movie-rating-system"
 version = "0.1.0"
+package-mode = false
 description = "AUT Software Engineering Project - Movie Rating System"
 authors = ["Your Name <you@example.com>"]
 

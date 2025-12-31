@@ -37,11 +37,8 @@ class Movie(Base):
     release_year = Column(Integer, nullable=False)
     cast = Column(String, nullable=True)
     director_id = Column(Integer, ForeignKey("directors.id"))
-    updated_at = Column(
-        DateTime(timezone=True),
-        onupdate=func.now(),
-        server_default=func.now()
-    )
+
+
 
     director = relationship("Director", back_populates="movies")
     genres = relationship("Genre", secondary=movie_genres, back_populates="movies")
@@ -72,6 +69,8 @@ class MovieRating(Base):
     id = Column(Integer, primary_key=True, index=True)
     movie_id = Column(Integer, ForeignKey("movies.id", ondelete='CASCADE'))
     score = Column(Integer, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+    rated_at = Column(DateTime(timezone=True), server_default=func.now())
 
     movie = relationship("Movie", back_populates="ratings")
