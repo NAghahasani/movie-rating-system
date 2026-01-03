@@ -1,35 +1,50 @@
-"""Repository layer for handling database operations for movies."""
+"""
+Repository layer for handling database operations for movies.
 
-from typing import List
+This module encapsulates all direct database interactions using SQLAlchemy,
+providing a clean API for the service layer.
+"""
 
+from typing import List, Optional, Tuple
+
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload, selectinload
-from sqlalchemy import func, distinct
 
 from app.models.models import Movie, MovieRating, Genre
 
 
 class MovieRepository:
-    """Handle CRUD operations for Movie model."""
+    """
+    Handle CRUD operations for Movie model.
 
-    def __init__(self, db: Session):
+    This class uses Constructor Injection to receive the database session.
+    """
+
+    def __init__(self, db: Session) -> None:
+        """
+        Initialize the repository with a database session.
+
+        :param db: SQLAlchemy database session
+        """
         self.db = db
 
     def get_all_movies(
             self,
             skip: int = 0,
             limit: int = 10,
-            title: str = None,
-            genre: str = None,
-            release_year: int = None
-    ):
-        """Retrieve a list of movies with optional filters.
+            title: Optional[str] = None,
+            genre: Optional[str] = None,
+            release_year: Optional[int] = None
+    ) -> Tuple[List[dict], int]:
+        """
+        Retrieve a list of movies with optional filters.
 
         :param skip: Number of records to skip
         :param limit: Maximum number of records to return
         :param title: Filter by movie title
         :param genre: Filter by genre name
         :param release_year: Filter by release year
-        :return: Tuple of (movie list, total count)
+        :return: Tuple containing formatted movie list and total count
         """
         query = self.db.query(Movie).options(
             joinedload(Movie.director),
@@ -46,15 +61,27 @@ class MovieRepository:
             query = query.join(Movie.genres).filter(Genre.name.ilike(f"%{genre}%"))
 
         total_items = query.distinct().count()
-        movies = query.distinct().order_by(Movie.id.asc()).offset(skip).limit(limit).all()
+        movies = (
+            query.distinct()
+            .order_by(Movie.id.asc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
-        return [self._format_movie_response(m, full_director=False) for m in movies], total_items
+        formatted_movies = [
+            self._format_movie_response(movie, full_director=False)
+            for movie in movies
+        ]
 
-    def get_movie_details(self, movie_id: int):
-        """Get detailed information about a specific movie.
+        return formatted_movies, total_items
 
-        :param movie_id: The ID of the movie
-        :return: Dictionary of movie details or None
+    def get_movie_details(self, movie_id: int) -> Optional[dict]:
+        """
+        Get detailed information about a specific movie.
+
+        :param movie_id: The unique identifier of the movie
+        :return: Dictionary of movie details or None if not found
         """
         movie = self.db.query(Movie).options(
             joinedload(Movie.director),
@@ -66,30 +93,42 @@ class MovieRepository:
 
         return self._format_movie_response(movie, full_director=True)
 
-    def create_movie(self, movie_data: dict, genre_ids: List[int]):
-        """Create a new movie record.
+    def create_movie(self, movie_data: dict, genre_ids: List[int]) -> dict:
+        """
+        Create a new movie record in the database.
 
-        :param movie_data: Dictionary containing movie attributes
-        :param genre_ids: List of genre IDs to associate
-        :return: Formatted movie dictionary
+        :param movie_data: Attributes for the new movie
+        :param genre_ids: List of genre IDs to associate with the movie
+        :return: Formatted dictionary of the created movie
         """
         new_movie = Movie(**movie_data)
 
         if genre_ids:
-            new_movie.genres = self.db.query(Genre).filter(Genre.id.in_(genre_ids)).all()
+            new_movie.genres = (
+                self.db.query(Genre)
+                .filter(Genre.id.in_(genre_ids))
+                .all()
+            )
 
         self.db.add(new_movie)
         self.db.commit()
         self.db.refresh(new_movie)
+
         return self._format_movie_response(new_movie, full_director=False)
 
-    def update_movie(self, movie_id: int, movie_data: dict, genre_ids: List[int]):
-        """Update an existing movie record.
+    def update_movie(
+            self,
+            movie_id: int,
+            movie_data: dict,
+            genre_ids: Optional[List[int]]
+    ) -> Optional[dict]:
+        """
+        Update an existing movie and its associations.
 
         :param movie_id: The ID of the movie to update
-        :param movie_data: Updated attributes
-        :param genre_ids: New list of genre IDs
-        :return: Updated formatted movie or None
+        :param movie_data: Dictionary of fields to update
+        :param genre_ids: New list of genre IDs to link
+        :return: Updated formatted movie dictionary or None
         """
         movie = self.db.query(Movie).options(
             selectinload(Movie.genres)
@@ -98,27 +137,39 @@ class MovieRepository:
         if not movie:
             return None
 
+        # Update base attributes
         for key, value in movie_data.items():
             if value is not None:
                 setattr(movie, key, value)
 
+        # Update relationships
         if genre_ids is not None:
-            movie.genres = self.db.query(Genre).filter(Genre.id.in_(genre_ids)).all()
+            movie.genres = (
+                self.db.query(Genre)
+                .filter(Genre.id.in_(genre_ids))
+                .all()
+            )
 
         self.db.commit()
         self.db.refresh(movie)
+
         return self.get_movie_details(movie.id)
 
     def delete_movie(self, movie_id: int) -> bool:
-        """Delete a movie and its ratings.
+        """
+        Remove a movie and its cascade-related ratings.
 
-        :param movie_id: The ID of the movie
-        :return: True if deleted, False otherwise
+        :param movie_id: The ID of the movie to delete
+        :return: True if deletion was successful, False otherwise
         """
         movie = self.db.query(Movie).filter(Movie.id == movie_id).first()
 
         if movie:
-            self.db.query(MovieRating).filter(MovieRating.movie_id == movie_id).delete()
+            # Explicitly delete ratings if not handled by DB cascade
+            self.db.query(MovieRating).filter(
+                MovieRating.movie_id == movie_id
+            ).delete()
+
             self.db.delete(movie)
             self.db.commit()
             return True
@@ -126,11 +177,12 @@ class MovieRepository:
         return False
 
     def add_rating(self, movie_id: int, score: int) -> dict:
-        """Add a rating score to a movie.
+        """
+        Add a new rating score for a movie.
 
         :param movie_id: ID of the movie
-        :param score: Rating score (1-10)
-        :return: Dictionary with rating details
+        :param score: Numeric score (1-10)
+        :return: Dictionary containing the new rating record
         """
         new_rating = MovieRating(movie_id=movie_id, score=score)
         self.db.add(new_rating)
@@ -144,36 +196,46 @@ class MovieRepository:
             "rated_at": new_rating.rated_at.strftime("%Y-%m-%dT%H:%M:%SZ")
         }
 
-    def _format_movie_response(self, m: Movie, full_director: bool = False) -> dict:
-        """Format the movie object into a standard response dictionary."""
+    def _format_movie_response(
+            self,
+            movie: Movie,
+            full_director: bool = False
+    ) -> dict:
+        """
+        Internal helper to format a Movie object into a standardized dict.
+
+        :param movie: The SQLAlchemy Movie instance
+        :param full_director: Whether to include full director bio
+        :return: Formatted response dictionary
+        """
+        # Calculate statistics using aggregation [cite: 108]
         stats = self.db.query(
             func.avg(MovieRating.score),
             func.count(MovieRating.id)
-        ).filter(MovieRating.movie_id == m.id).first()
+        ).filter(MovieRating.movie_id == movie.id).first()
 
         response = {
-            "id": m.id,
-            "title": m.title,
-            "release_year": m.release_year,
+            "id": movie.id,
+            "title": movie.title,
+            "release_year": movie.release_year,
             "director": None,
-            "genres": [g.name for g in m.genres],
-            "cast": m.cast,
+            "genres": [genre.name for genre in movie.genres],
+            "cast": movie.cast,
             "average_rating": round(float(stats[0]), 1) if stats[0] else None,
-            "ratings_count": stats[1],
-             #"updated_at": m.updated_at.strftime("%Y-%m-%dT%H:%M:%SZ") if m.updated_at else None
+            "ratings_count": stats[1]
         }
 
-        if m.director:
+        if movie.director:
+            # Inline director data formatting
+            director_data = {
+                "id": movie.director.id,
+                "name": movie.director.name
+            }
             if full_director:
-                response["director"] = {
-                    "id": m.director.id,
-                    "name": m.director.name,
-                    "birth_year": m.director.birth_year,
-                    "description": m.director.description
-                }
-            else:
-                response["director"] = {
-                    "id": m.director.id,
-                    "name": m.director.name
-                }
+                director_data.update({
+                    "birth_year": movie.director.birth_year,
+                    "description": movie.director.description
+                })
+            response["director"] = director_data
+
         return response
