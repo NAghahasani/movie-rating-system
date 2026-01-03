@@ -141,7 +141,7 @@ class MovieRepository:
             "rating_id": new_rating.id,
             "movie_id": new_rating.movie_id,
             "score": new_rating.score,
-            "created_at": new_rating.created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+            "rated_at": new_rating.rated_at.strftime("%Y-%m-%dT%H:%M:%SZ")
         }
 
     def _format_movie_response(self, m: Movie, full_director: bool = False) -> dict:
